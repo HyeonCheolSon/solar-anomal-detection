@@ -3,13 +3,16 @@ import argparse
 import cv2
 import numpy as np
 import os
+import tensorflow as tf
 
-def mouse_event(event, x, y, flags, param):
-    global pointlist
-    
-    if event == cv2.EVENT_FLAG_LBUTTON:    
-        pointlist.append([x, y])
-        print("point: " + str(x) + ", " + str(y))
+def imread(filename, flags=cv2.IMREAD_COLOR, dtype=np.uint8): 
+    try: 
+        n = np.fromfile(filename, dtype) 
+        img = cv2.imdecode(n, flags) 
+        return img 
+    except Exception as e: 
+        print(e) 
+        return None
 
 def imwrite(filename, img, params=None): 
     try: 
@@ -25,6 +28,116 @@ def imwrite(filename, img, params=None):
         print(e) 
         return False
 
+def one_hot_encoding(word, word2index):
+       one_hot_vector = [0]*(len(word2index))
+       index=word2index[word]
+       one_hot_vector[index]=1
+       return one_hot_vector
+
+###################
+
+def conv1_layer(x):    
+    x = tf.keras.layers.ZeroPadding2D(padding=(3, 3))(x)
+    x = tf.keras.layers.Conv2D(64, (7, 7), strides=(2, 2))(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.Activation('relu')(x)
+    x = tf.keras.layers.ZeroPadding2D(padding=(1,1))(x)
+ 
+    return x   
+ 
+    
+ 
+def conv2_layer(x):         
+    x = tf.keras.layers.MaxPooling2D((3, 3), 2)(x)     
+ 
+    shortcut = x
+ 
+    for i in range(3):
+        if (i == 0):
+            x = tf.keras.layers.Conv2D(64, (1, 1), strides=(1, 1), padding='valid')(x)
+            x = tf.keras.layers.BatchNormalization()(x)
+            x = tf.keras.layers.Activation('relu')(x)
+            
+            x = tf.keras.layers.Conv2D(64, (3, 3), strides=(1, 1), padding='same')(x)
+            x = tf.keras.layers.BatchNormalization()(x)
+            x = tf.keras.layers.Activation('relu')(x)
+ 
+            x = tf.keras.layers.Conv2D(256, (1, 1), strides=(1, 1), padding='valid')(x)
+            shortcut = tf.keras.layers.Conv2D(256, (1, 1), strides=(1, 1), padding='valid')(shortcut)            
+            x = tf.keras.layers.BatchNormalization()(x)
+            shortcut = tf.keras.layers.BatchNormalization()(shortcut)
+ 
+            x = tf.keras.layers.Add()([x, shortcut])
+            x = tf.keras.layers.Activation('relu')(x)
+            
+            shortcut = x
+ 
+        else:
+            x = tf.keras.layers.Conv2D(64, (1, 1), strides=(1, 1), padding='valid')(x)
+            x = tf.keras.layers.BatchNormalization()(x)
+            x = tf.keras.layers.Activation('relu')(x)
+            
+            x = tf.keras.layers.Conv2D(64, (3, 3), strides=(1, 1), padding='same')(x)
+            x = tf.keras.layers.BatchNormalization()(x)
+            x = tf.keras.layers.Activation('relu')(x)
+ 
+            x = tf.keras.layers.Conv2D(256, (1, 1), strides=(1, 1), padding='valid')(x)
+            x = tf.keras.layers.BatchNormalization()(x)            
+ 
+            x = tf.keras.layers.Add()([x, shortcut])   
+            x = tf.keras.layers.Activation('relu')(x)  
+ 
+            shortcut = x        
+    
+    return x
+ 
+ 
+ 
+def conv3_layer(x):        
+    shortcut = x    
+    
+    for i in range(4):     
+        if(i == 0):            
+            x = tf.keras.layers.Conv2D(128, (1, 1), strides=(2, 2), padding='valid')(x)
+            x = tf.keras.layers.BatchNormalization()(x)
+            x = tf.keras.layers.Activation('relu')(x)        
+            
+            x = tf.keras.layers.Conv2D(128, (3, 3), strides=(1, 1), padding='same')(x)
+            x = tf.keras.layers.BatchNormalization()(x)
+            x = tf.keras.layers.Activation('relu')(x)  
+ 
+            x = tf.keras.layers.Conv2D(512, (1, 1), strides=(1, 1), padding='valid')(x)
+            shortcut = tf.keras.layers.Conv2D(512, (1, 1), strides=(2, 2), padding='valid')(shortcut)
+            x = tf.keras.layers.BatchNormalization()(x)
+            shortcut = tf.keras.layers.BatchNormalization()(shortcut)            
+ 
+            x = tf.keras.layers.Add()([x, shortcut])    
+            x = tf.keras.layers.Activation('relu')(x)    
+ 
+            shortcut = x              
+        
+        else:
+            x = tf.keras.layers.Conv2D(128, (1, 1), strides=(1, 1), padding='valid')(x)
+            x = tf.keras.layers.BatchNormalization()(x)
+            x = tf.keras.layers.Activation('relu')(x)
+            
+            x = tf.keras.layers.Conv2D(128, (3, 3), strides=(1, 1), padding='same')(x)
+            x = tf.keras.layers.BatchNormalization()(x)
+            x = tf.keras.layers.Activation('relu')(x)
+ 
+            x = tf.keras.layers.Conv2D(512, (1, 1), strides=(1, 1), padding='valid')(x)
+            x = tf.keras.layers.BatchNormalization()(x)            
+ 
+            x = tf.keras.layers.Add()([x, shortcut])     
+            x = tf.keras.layers.Activation('relu')(x)
+ 
+            shortcut = x      
+            
+    return x
+
+
+######################
+
 
 if __name__ == "__main__" :
 
@@ -32,65 +145,45 @@ if __name__ == "__main__" :
     # ap.add_argument('-i', '--image', required = True, help = 'Path to the input image')
     # args = vars(ap.parse_args())
     # filename = args['image']
+    
+    TRAIN_PATH = 'C:\\Users\\손현철\\Desktop\\hc\\사업\\태양광\\solar\\컬러\\'
 
-    path_dir = 'C:\\Users\\손현철\\Desktop\\hc\\사업\\태양광\\패턴별 사진\\컬러'
-    # path_dir = 'C:/Users/손현철/Desktop/hc/사업/태양광/패턴별 사진/컬러'
-    output_dir = 'C:\\Users\\손현철\\Desktop\\hc\\사업\\태양광\\데이터만들기'
-    
-    folder_list = os.listdir(path_dir)
-    
+    x_train = []
+    y_train = []
+
+    folder_list = os.listdir(TRAIN_PATH)
+    folder_list.sort()
+
+    word2index={}
+    for voca in folder_list:
+        if voca not in word2index.keys():
+            word2index[voca]=len(word2index)
+    print(word2index)
+
     for folder in folder_list:
-        file_list = os.listdir(path_dir + "\\" + folder)
-        # print(folder, file_list)
-
+        file_list = os.listdir(TRAIN_PATH + folder)
         for filename in file_list:
-            # filename = path_dir + "/" + folder + '/' + filename
-            filename = path_dir + "\\" + folder + '\\' + filename
-            print(filename)
-            # image = cv2.imread(filename)
-            img_array = np.fromfile(filename, np.uint8)
-            image = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
-            img = image.copy()
-            pointlist = []
-            cv2.imshow("draw", img)
-            cv2.setMouseCallback("draw", mouse_event, img)
-            cv2.waitKey()
+            filepath = TRAIN_PATH + folder + '\\' + filename
+            image = imread(filepath)
+            image.tolist()
+            x_train.append(image)
+            y_train.append(one_hot_encoding(folder, word2index))
 
-            print(pointlist)
-            if len(pointlist) == 0:
-                continue
+    x_train = np.array(x_train)
+    y_train = np.array(y_train)
 
-            # img = image.copy()
-            # img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    inputs = tf.keras.Input(shape = (128,128,3))
 
-            # img = cv2.Canny(img, 40, 200)
+    x = conv1_layer(inputs)
+    x = conv2_layer(x)
+    x = conv3_layer(x)
 
-            # (_, contours, _) = cv2.findContours(img, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-            # for i in range(0,5):
-            #     cntr = sorted(contours, key=cv2.contourArea, reverse=True)[i]
-            #     epsilon = 0.1*cv2.arcLength(cntr, True)
-            #     approx = cv2.approxPolyDP(cntr, epsilon, True)
-            #     if(len(approx) == 4):
-            #         cv2.drawContours(image, [approx], 0, (0, 255, 0), 2)
-            #         break
+    x = tf.keras.layers.GlobalAveragePooling2D()(x)
+    outputs = tf.keras.layers.Dense(len(folder_list), activation='softmax')(x)
 
+    model = tf.keras.Model(inputs, outputs)
+    model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['poisson', 'accuracy'])
 
-            pts1 = np.float32(pointlist) # left-up - left-bottom - right-up - right-bottm
-        #    pts1 = np.float32([[115, 173], [252, 928], [545, 91], [705, 827]]) # receipt.jpg
-        #    pts1 = np.float32([[29, 132], [51, 978], [574, 65], [742, 892]]) # document.jpg
-        #    pts1 = np.float32([[405, 192], [0, 631], [744, 409], [379, 931]]) # document2.jpg
+    hist = model.fit(x_train, y_train, epochs=150)
 
-            pts2 = np.float32([[0, 0], [0, 128], [128, 0], [128, 128]])
-            matrix = cv2.getPerspectiveTransform(pts1, pts2)
-            img = cv2.warpPerspective(image, matrix, (128, 128))
-            # img = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
-            # image = cv2.adaptiveThreshold(image, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 21, 5)
-            imwrite(output_dir + '\\컬러\\' + folder + '\\' + filename.split('\\')[-1].split('.')[-2] + "_data.jpg", img)
-            print('saved: ' + output_dir + '\\컬러\\' + folder + '\\' + filename.split('\\')[-1].split('.')[-2] + "_data.jpg")
-
-            # cv2.imwrite(output_dir + '\\컬러\\' + folder + '\\' + filename.split('\\')[-1].split('.')[-2] + "_data.jpg", img)
-            # print('saved: ' + output_dir + '\\컬러\\' + folder + '\\' + filename.split('\\')[-1].split('.')[-2] + "_data.jpg")
-
-
-
+    model.save('solar_model')

@@ -11,6 +11,15 @@ def mouse_event(event, x, y, flags, param):
         pointlist.append([x, y])
         print("point: " + str(x) + ", " + str(y))
 
+def imread(filename, flags=cv2.IMREAD_COLOR, dtype=np.uint8): 
+    try: 
+        n = np.fromfile(filename, dtype) 
+        img = cv2.imdecode(n, flags) 
+        return img 
+    except Exception as e: 
+        print(e) 
+        return None
+
 def imwrite(filename, img, params=None): 
     try: 
         ext = os.path.splitext(filename)[1] 
